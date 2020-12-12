@@ -1,73 +1,124 @@
-;;
-;; Author: Erik Elmore <erik@ironsavior.net>
-;; Version: 1.1 (Aug 16, 2005)
-;;
-;; Enables you to use any key with cursor movement
-;; to emulate a scrolling middle button.  While
-;; the TriggerKey is held down, you may move the
-;; mouse cursor up and down to send scroll wheel
-;; events.  If the cursor does not move by the
-;; time the TriggerKey is released, then a middle
-;; button click is generated.  I wrote this for my
-;; 4-button Logitech Marble Mouse (trackball),
-;; which has no middle button or scroll wheel.
-;;
-
-;; Configuration
-
-;#NoTrayIcon
-
-;; Higher numbers mean less sensitivity
-esmb_Threshold = 5
-
-;; This key/Button activates scrolling
-esmb_TriggerKey = XButton1
-
-;; End of configuration
 
 #Persistent
+#NoEnv
+SendMode, Input
+SetKeyDelay, 0
+Process, Priority,, H 
+SetWorkingDir %A_ScriptDir%
 CoordMode, Mouse, Screen
-Hotkey, %esmb_TriggerKey%, esmb_TriggerKeyDown
-HotKey, %esmb_TriggerKey% Up, esmb_TriggerKeyUp
-esmb_KeyDown = n
-SetTimer, esmb_CheckForScrollEventAndExecute, 10
+;;#NoTrayIcon
+
+;; Higher numbers mean less sensitivity
+;; How far you need to move the mouse to trigger a scroll tick
+esmb_ThresholdX := 2
+esmb_ThresholdY := 6
+
+;; How far away from initial click pos you need to move the mouse to start scroll
+;; If you away move less than this and release, it will right click
+;; If set to -1, will only right click if you release before moving the mouse
+esmb_InitialThreshold := 10
+
+SetTimer, esmb_CheckForScrollEventAndExecute, 10 ;; change number for how often it updates
+SetTimer, esmb_CheckForScrollEventAndExecute, Off
+
+;; Delay before starting the timer after button has been clicked
+;; This is to fix a bug where the "RButton Up" hotkey is not being triggered if you do ButtonDown-Move-ButtonUp swoop very fast
+;; It also allows you to right click while moving your mouse a bit too fast
+;; This makes it feel less responsive, but it is very preferable to the bug
+esmb_StartTimerDelay := -100
+
 return
 
-esmb_TriggerKeyDown:
-esmb_Moved = n
-esmb_FirstIteration = y
-esmb_KeyDown = y
-MouseGetPos,, esmb_OldY
+*RButton::
+  esmb_KeyDown := true
+  esmb_Moved := false
+  esmb_FirstIteration := true
+  MouseGetPos, esmb_OldX, esmb_OldY
+  esmb_AccumulatedDistanceX := 0
+  esmb_AccumulatedDistanceY := 0
+  SetTimer, esmb_StartTimer, % esmb_StartTimerDelay ;; starting timer after delay because "RButton Up" might not be triggered otherwise
 return
 
-esmb_TriggerKeyUp:
-esmb_KeyDown = n
-;; Send a middle-click if we did not scroll
-if esmb_Moved = n
-    MouseClick, Middle
+*RButton Up::
+  esmb_KeyDown := false
+  Gosub, esmb_StopTimers
+  if (esmb_Moved == false) {
+    Send, {Blind}{RButton}
+  }
+  esmb_FirstIteration := true
+  esmb_Moved := false
+return
+
+esmb_StartTimer:
+  if (esmb_KeyDown == true) {
+    SetTimer, esmb_CheckForScrollEventAndExecute, On
+  }
+return
+
+esmb_StopTimers:
+  SetTimer, esmb_CheckForScrollEventAndExecute, Off
+  SetTimer, esmb_StartTimer, Off
 return
 
 esmb_CheckForScrollEventAndExecute:
-if esmb_KeyDown = n
+  if (esmb_KeyDown == false) {
+    Gosub, esmb_StopTimers
     return
+  }
 
-MouseGetPos,, esmb_NewY
-esmb_Distance := esmb_NewY - esmb_OldY
-if esmb_Distance
-    esmb_Moved = y
+  MouseGetPos, esmb_NewX, esmb_NewY
+  
+  if (esmb_NewX == esmb_OldX && esmb_NewY == esmb_OldY) {
+    return
+  }
+  
+  esmb_DistanceX := (esmb_NewX - esmb_OldX)
+  esmb_DistanceY := (esmb_NewY - esmb_OldY)
+  
+  esmb_OldX := esmb_NewX
+  esmb_OldY := esmb_NewY
 
-;; Do not send clicks on the first iteration
-if esmb_FirstIteration = y
-    esmb_FirstIteration = n
-else if esmb_Distance > %esmb_Threshold%
-{
-    esmb_OldY := esmb_OldY + esmb_Threshold
-    MouseClick, WheelDown
-}
-else if esmb_Distance < -%esmb_Threshold%
-{
-    esmb_OldY := esmb_OldY - esmb_Threshold
-    MouseClick, WheelUp
-}
+  esmb_AccumulatedDistanceX += esmb_DistanceX
+  esmb_AccumulatedDistanceY += esmb_DistanceY
+  
+  ;; check if mouse moved far enough from initial point
+  if (esmb_Moved == false) {
+    if ((Abs(esmb_AccumulatedDistanceX) > esmb_InitialThreshold) || (Abs(esmb_AccumulatedDistanceY) > esmb_InitialThreshold)) {
+      esmb_Moved := true
+    } else {
+      return
+    }
+  }
 
+  esmb_TicksX := (esmb_AccumulatedDistanceX // esmb_ThresholdX)
+  esmb_TicksY := (esmb_AccumulatedDistanceY // esmb_ThresholdY)
+  
+  esmb_AccumulatedDistanceX := (esmb_AccumulatedDistanceX - (esmb_TicksX * esmb_ThresholdX))
+  esmb_AccumulatedDistanceY := (esmb_AccumulatedDistanceY - (esmb_TicksY * esmb_ThresholdY))
+  
+  esmb_WheelDirectionX := "WheelRight"
+  esmb_WheelDirectionY := "WheelDown"
+  
+  
+  if (esmb_TicksX < 0) {
+    esmb_WheelDirectionX := "WheelLeft"
+    esmb_TicksX := (-1 * esmb_TicksX)
+  }
+  if (esmb_TicksY < 0) {
+    esmb_WheelDirectionY := "WheelUp"
+    esmb_TicksY := (-1 * esmb_TicksY)
+  }
+  ;; Do not send clicks on the first iteration
+  if (esmb_FirstIteration = true) {
+    esmb_FirstIteration := false
+  } else {
+    Loop % esmb_TicksX {
+      MouseClick, %esmb_WheelDirectionX%
+    }
+    Loop % esmb_TicksY {
+      MouseClick, %esmb_WheelDirectionY%
+    }
+  }
 return
+
+ScrollLock::Suspend
