@@ -2,6 +2,9 @@
 
 [AutoHotkey](https://www.autohotkey.com/) script that scrolls when the cursor is moved while right mouse button is held down. 
 
+Scroll lock key toggles suspend of the script.  
+It only suspends the hotkeys, so if it is suspended while holding right mouse button, the scrolling will continue until it is no longer suspended.
+
 The cursor keeps moving during scrolling, which differs from the scrolling you see with trackpads.  
 On a trackpad you can easily lift your finger to keep scrolling after you reach the edge of the trackpad.  
 With a mouse it is cumbersome to lift the mouse to move it.  
