@@ -19,7 +19,7 @@ esmb_ThresholdY := 5
 ;; If set to -1, will only right click if you release before moving the mouse
 esmb_InitialThreshold := 10
 
-SetTimer, esmb_CheckForScrollEventAndExecute, 10
+SetTimer, esmb_CheckForScrollEventAndExecute, 7
 SetTimer, esmb_CheckForScrollEventAndExecute, Off
 
 return
