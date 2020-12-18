@@ -1,3 +1,6 @@
+;; Author: Erik Elmore <erik@ironsavior.net>
+;; Modified by: Jakob Kofod Beyer <jkb@hvalfisk.dk>
+;; AutoHotkey Version 1.1
 
 #Persistent
 #NoEnv
