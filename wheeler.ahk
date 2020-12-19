@@ -20,7 +20,8 @@ esmb_ThresholdY := 5
 ;; How far away from initial click pos you need to move the mouse to start scroll
 ;; If you move less than this and release, it will right click
 ;; If set to -1, will only right click if you release before moving the mouse
-esmb_InitialThreshold := 10
+esmb_InitialThresholdX := 15
+esmb_InitialThresholdY := 10
 
 SetTimer, esmb_CheckForScrollEventAndExecute, 7
 SetTimer, esmb_CheckForScrollEventAndExecute, Off
@@ -31,7 +32,8 @@ ScrollLock::Suspend
 
 RButton::
   esmb_KeyDown := true
-  esmb_Moved := false
+  esmb_MovedX := false
+  esmb_MovedY := false
   MouseGetPos, esmb_OldX, esmb_OldY
   esmb_AccumulatedDistanceX := 0
   esmb_AccumulatedDistanceY := 0
@@ -41,7 +43,7 @@ return
 RButton Up::
   esmb_KeyDown := false
   SetTimer, esmb_CheckForScrollEventAndExecute, Off
-  if (esmb_Moved == false) {
+  if (esmb_MovedY == false && esmb_MovedX == false) {
     Send, {RButton}
   }
 return
@@ -64,31 +66,37 @@ esmb_CheckForScrollEventAndExecute:
   esmb_AccumulatedDistanceY += esmb_DistanceY
 
   ;; check if mouse moved far enough from initial point
-  if (esmb_Moved == false) {
-    if ((Abs(esmb_AccumulatedDistanceX) > esmb_InitialThreshold) || (Abs(esmb_AccumulatedDistanceY) > esmb_InitialThreshold)) {
-      esmb_Moved := true
+  if (esmb_MovedX == false && esmb_MovedY == false) {
+    if ((Abs(esmb_AccumulatedDistanceY) > esmb_InitialThresholdY)) {
+      esmb_MovedY := true
+    } else if (Abs(esmb_AccumulatedDistanceX) > esmb_InitialThresholdX) {
+      esmb_MovedX := true
     } else {
       return
     }
   }
 
-  esmb_TicksX := (esmb_AccumulatedDistanceX // esmb_ThresholdX)
-  esmb_TicksY := (esmb_AccumulatedDistanceY // esmb_ThresholdY)
+  if (esmb_MovedX) {
+    esmb_TicksX := (esmb_AccumulatedDistanceX // esmb_ThresholdX)
+    esmb_AccumulatedDistanceX -= (esmb_TicksX * esmb_ThresholdX)
 
-  esmb_AccumulatedDistanceX -= (esmb_TicksX * esmb_ThresholdX)
-  esmb_AccumulatedDistanceY -= (esmb_TicksY * esmb_ThresholdY)
-
-  if (esmb_TicksX < 0) {
-    esmb_TicksX := Abs(esmb_TicksX)
-    Click, WheelLeft, %esmb_TicksX%
-  } else {
-    Click, WheelRight, %esmb_TicksX%
+    if (esmb_TicksX < 0) {
+      esmb_TicksX := Abs(esmb_TicksX)
+      Click, WheelLeft, %esmb_TicksX%
+    } else if (esmb_TicksX > 0) {
+      Click, WheelRight, %esmb_TicksX%
+    }
   }
-  
-  if (esmb_TicksY < 0) {
-    esmb_TicksY := Abs(esmb_TicksY)
-    Click, WheelUp, %esmb_TicksY%
-  } else {
-    Click, WheelDown, %esmb_TicksY%
+
+  if (esmb_MovedY) {
+    esmb_TicksY := (esmb_AccumulatedDistanceY // esmb_ThresholdY)
+    esmb_AccumulatedDistanceY -= (esmb_TicksY * esmb_ThresholdY)
+
+    if (esmb_TicksY < 0) {
+      esmb_TicksY := Abs(esmb_TicksY)
+      Click, WheelUp, %esmb_TicksY%
+    } else if (esmb_TicksY > 0) {
+      Click, WheelDown, %esmb_TicksY%
+    }
   }
 return
