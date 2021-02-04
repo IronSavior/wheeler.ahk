@@ -1,102 +1,94 @@
-;; Author: Erik Elmore <erik@ironsavior.net>
-;; Modified by: Jakob Kofod Beyer <jkb@hvalfisk.dk>
-;; AutoHotkey Version 1.1
+;; Contributors:
+;; * Erik Elmore <erik@elmore.io>
+;; * Jakob Kofod Beyer <jkb@hvalfisk.dk>
+;; AutoHotkey Version 1.1.33
 
 #Persistent
 #NoEnv
-;;#NoTrayIcon
-
 CoordMode, Mouse, Screen
-SendMode, Input
-SetMouseDelay, -1
-SetBatchLines, -1
-SetWorkingDir, %A_ScriptDir%
 
-;; Higher numbers mean less sensitivity
-;; How far you need to move the mouse to trigger a scroll tick
-esmb_ThresholdX := 3
-esmb_ThresholdY := 5
+;; Hold this button to scroll
+ActivateKey := "XButton1"
+
+;; If the ActivateKey is pressed and released without moving, send this keypress instead
+NonScrollAction := "MButton"
 
 ;; How far away from initial click pos you need to move the mouse to start scroll
-;; If you move less than this and release, it will right click
-;; If set to -1, will only right click if you release before moving the mouse
-esmb_InitialThresholdX := 15
-esmb_InitialThresholdY := 10
+;; If you move less than this and release, it will send the NonScrollAction instead
+xActivateThreshold := 10
+yActivateThreshold := 8
 
-SetTimer, esmb_CheckForScrollEventAndExecute, 7
-SetTimer, esmb_CheckForScrollEventAndExecute, Off
+;; Higher numbers mean less sensitivity
+;; How far you need to move the mouse to trigger a scroll tick, once scrolling is activated
+xScrollSensitivity := 10
+yScrollSensitivity := 8
+
+;; Minimum response time of the loop
+LoopInterval := 7
+
+Hotkey, %ActivateKey%, KeyDown
+Hotkey, %ActivateKey% Up, KeyUp
 
 return
 
 ScrollLock::Suspend
 
-RButton::
-  esmb_KeyDown := true
-  esmb_MovedX := false
-  esmb_MovedY := false
-  MouseGetPos, esmb_OldX, esmb_OldY
-  esmb_AccumulatedDistanceX := 0
-  esmb_AccumulatedDistanceY := 0
-  SetTimer, esmb_CheckForScrollEventAndExecute, On
+KeyDown:
+  KeyDown := true
+  ScrollMode := ""
+  MouseGetPos, xLast, yLast
+  xDistance := 0
+  yDistance := 0
+  SetTimer, Scroll, %LoopInterval%
 return
 
-RButton Up::
-  esmb_KeyDown := false
-  SetTimer, esmb_CheckForScrollEventAndExecute, Off
-  if (esmb_MovedY == false && esmb_MovedX == false) {
-    Send, {RButton}
+KeyUp:
+  KeyDown := false
+  SetTimer, Scroll, Off
+  if (ScrollMode == "") {
+    SendInput, {%NonScrollAction%}
   }
 return
 
-esmb_CheckForScrollEventAndExecute:
-  if (esmb_KeyDown == false) {
-    SetTimer, esmb_CheckForScrollEventAndExecute, Off
+Scroll:
+  if (KeyDown == false) {
+    SetTimer, Scroll, Off
     return
   }
-  
-  MouseGetPos, esmb_NewX, esmb_NewY
 
-  esmb_DistanceX := (esmb_NewX - esmb_OldX)
-  esmb_DistanceY := (esmb_NewY - esmb_OldY)
-  
-  esmb_OldX := esmb_NewX
-  esmb_OldY := esmb_NewY
+  MouseGetPos, xNow, yNow
 
-  esmb_AccumulatedDistanceX += esmb_DistanceX
-  esmb_AccumulatedDistanceY += esmb_DistanceY
+  xDistance += (xNow - xLast)
+  yDistance += (yNow - yLast)
 
-  ;; check if mouse moved far enough from initial point
-  if (esmb_MovedX == false && esmb_MovedY == false) {
-    if ((Abs(esmb_AccumulatedDistanceY) > esmb_InitialThresholdY)) {
-      esmb_MovedY := true
-    } else if (Abs(esmb_AccumulatedDistanceX) > esmb_InitialThresholdX) {
-      esmb_MovedX := true
-    } else {
+  xLast := xNow
+  yLast := yNow
+
+  if (ScrollMode == "") {
+    switch
+    {
+    case Abs(yDistance) > yActivateThreshold:
+      ScrollMode := "Y"
+    case Abs(xDistance) > xActivateThreshold:
+      ScrollMode := "X"
+     default:
       return
     }
   }
 
-  if (esmb_MovedX) {
-    esmb_TicksX := (esmb_AccumulatedDistanceX // esmb_ThresholdX)
-    esmb_AccumulatedDistanceX -= (esmb_TicksX * esmb_ThresholdX)
-
-    if (esmb_TicksX < 0) {
-      esmb_TicksX := Abs(esmb_TicksX)
-      Click, WheelLeft, %esmb_TicksX%
-    } else if (esmb_TicksX > 0) {
-      Click, WheelRight, %esmb_TicksX%
-    }
+  Clicks := 0
+  switch ScrollMode {
+  case "Y":
+    Clicks := (yDistance // yScrollSensitivity)
+    yDistance -= (Clicks * yScrollSensitivity)
+    dir := Clicks < 0 ? "WheelUp" : "WheelDown"
+  case "X":
+    Clicks := (xDistance // xScrollSensitivity)
+    xDistance -= (Clicks * xScrollSensitivity)
+    dir := Clicks < 0 ? "WheelLeft" : "WheelRight"
   }
 
-  if (esmb_MovedY) {
-    esmb_TicksY := (esmb_AccumulatedDistanceY // esmb_ThresholdY)
-    esmb_AccumulatedDistanceY -= (esmb_TicksY * esmb_ThresholdY)
-
-    if (esmb_TicksY < 0) {
-      esmb_TicksY := Abs(esmb_TicksY)
-      Click, WheelUp, %esmb_TicksY%
-    } else if (esmb_TicksY > 0) {
-      Click, WheelDown, %esmb_TicksY%
-    }
+  if (Clicks != 0) {
+    Click, %dir%, Abs(Clicks)
   }
 return
